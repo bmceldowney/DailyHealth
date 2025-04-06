@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package health;
+
+option go_package = "dailyhealth/backend/proto";
+
+service HealthService {
+  rpc GetHealthStatus (HealthRequest) returns (HealthResponse) {}
+}
+
+message HealthRequest {
+  string name = 1;
+}
+
+message HealthResponse {
+  string status = 1;
+  string message = 2;
+} 
