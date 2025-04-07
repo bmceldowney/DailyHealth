@@ -5,8 +5,11 @@ import (
 	"log"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 
 	pb "dailyhealth/backend/proto"
+
 	"google.golang.org/grpc"
 )
 
@@ -15,6 +18,7 @@ type server struct {
 }
 
 func (s *server) GetHealthStatus(ctx context.Context, req *pb.HealthRequest) (*pb.HealthResponse, error) {
+	log.Printf("Received health check request for: %s", req.GetName())
 	return &pb.HealthResponse{
 		Status:  "OK",
 		Message: "Hello " + req.GetName(),
@@ -35,8 +39,17 @@ func main() {
 	s := grpc.NewServer()
 	pb.RegisterHealthServiceServer(s, &server{})
 
-	log.Printf("server listening at %v", lis.Addr())
+	// Handle graceful shutdown
+	go func() {
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+		<-sigChan
+		log.Println("Shutting down server...")
+		s.GracefulStop()
+	}()
+
+	log.Printf("Server listening at %v", lis.Addr())
 	if err := s.Serve(lis); err != nil {
 		log.Fatalf("failed to serve: %v", err)
 	}
-} 
+}
