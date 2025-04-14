@@ -4,5 +4,6 @@
   "typescript.suggest.paths": true,
   "path-intellisense.mappings": {
     "/": "~/docker_node_modules/dailyhealth_frontend"
-  }
+  },
+  "cSpell.words": ["bufbuild"]
 }

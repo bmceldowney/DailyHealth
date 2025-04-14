@@ -2,16 +2,21 @@
 
 import { useState, useEffect } from "react";
 import config from "../config";
-import { HealthServiceClient } from "@proto/HealthServiceClientPb";
-import { HealthRequest, HealthRequestSchema } from "@proto/health_pb";
-import { create } from "@bufbuild/protobuf";
+import { HealthService } from "@proto/health_connect";
+import { HealthRequest } from "@proto/health_pb";
+import { createGrpcWebTransport } from "@bufbuild/connect-web";
+import { createPromiseClient } from "@bufbuild/connect";
 
 interface HealthStatus {
   status: string;
   message: string;
 }
 
-const client = new HealthServiceClient(config.grpcWebUrl);
+const transport = createGrpcWebTransport({
+  baseUrl: config.grpcWebUrl,
+});
+
+const client = createPromiseClient(HealthService, transport);
 
 export const useHealth = () => {
   const [health, setHealth] = useState<HealthStatus | null>(null);
@@ -19,8 +24,7 @@ export const useHealth = () => {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const request: HealthRequest = create(HealthRequestSchema);
-
+    const request = new HealthRequest({ name: "Dogg" });
     client
       .getHealthStatus(request)
       .then((response) => {
