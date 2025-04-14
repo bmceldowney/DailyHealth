@@ -1,12 +1,13 @@
 /** @format */
 
-import { useHealth } from "./hooks/useHealth";
+import React from "react";
+import { useHealth } from "../hooks/useHealth";
 
-function App() {
+export const HealthStatus: React.FC = () => {
   const { health, loading, error } = useHealth();
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <div className="p-4">Loading health status...</div>;
   }
 
   if (error) {
@@ -38,6 +39,4 @@ function App() {
       </div>
     </div>
   );
-}
-
-export default App;
+};

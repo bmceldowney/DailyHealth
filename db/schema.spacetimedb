@@ -1,0 +1,118 @@
+// modules/exercise.rs or schema.spacetimedb
+
+// Define the structure for an Exercise table
+#[spacetimedb(table)]
+pub struct Exercise {
+    // Use a simple incrementing ID as the primary key.
+    // In production, consider a more robust system like UUIDs (as strings or bytes)
+    // or a dedicated sequence table if high concurrency inserts are expected.
+    #[primarykey]
+    pub exercise_id: u32,
+
+    // Name of the exercise
+    pub name: string,
+
+    // List of muscle groups targeted by this exercise
+    pub muscle_groups: Vec<string>,
+
+    // Flag indicating if the exercise is primarily aerobic
+    pub is_aerobic: bool,
+}
+
+// --- Reducers (Functions to modify state) ---
+
+/// Inserts a new exercise into the table.
+/// Ensure the provided 'id' is unique before calling.
+#[spacetimedb(reducer)]
+pub fn insert_exercise(ctx: ReducerContext, id: u32, name: string, muscle_groups: Vec<string>, is_aerobic: bool) -> Result<(), String> {
+    // Basic validation
+    if name.is_empty() {
+        return Err("Exercise name cannot be empty.".to_string());
+    }
+    // Check if ID already exists (important if managing IDs manually)
+    if Exercise::filter_by_exercise_id(&id).is_some() {
+        return Err(format!("Exercise with ID {} already exists.", id));
+    }
+
+    // Insert the new exercise record
+    Exercise::insert(Exercise {
+        exercise_id: id,
+        name,
+        muscle_groups,
+        is_aerobic,
+    }).map_err(|e| format!("Failed to insert exercise: {:?}", e))?; // Handle potential insertion errors
+
+    Ok(())
+}
+
+/// Updates an existing exercise identified by its ID.
+#[spacetimedb(reducer)]
+pub fn update_exercise(ctx: ReducerContext, id: u32, new_name: string, new_muscle_groups: Vec<string>, new_is_aerobic: bool) -> Result<(), String> {
+    if new_name.is_empty() {
+        return Err("Exercise name cannot be empty.".to_string());
+    }
+
+    // Find the existing exercise (mutable access might be needed depending on exact API)
+    // This conceptual example assumes filter then update. Actual API might differ slightly.
+    if let Some(mut exercise) = Exercise::filter_by_exercise_id(&id) {
+         exercise.name = new_name;
+         exercise.muscle_groups = new_muscle_groups;
+         exercise.is_aerobic = new_is_aerobic;
+
+         // Update the record (syntax might vary slightly based on SpacetimeDB version/API)
+         // For demonstration, let's assume re-inserting with the same ID acts as an update,
+         // or there's an explicit `Exercise::update` method. Let's use insert for simplicity here.
+         Exercise::insert(exercise)
+            .map_err(|e| format!("Failed to update exercise {}: {:?}", id, e))?;
+         Ok(())
+    } else {
+        Err(format!("Exercise with ID {} not found for update.", id))
+    }
+}
+
+/// Deletes an exercise by its ID.
+#[spacetimedb(reducer)]
+pub fn delete_exercise(ctx: ReducerContext, id: u32) -> Result<(), String> {
+    if let Some(exercise) = Exercise::filter_by_exercise_id(&id) {
+        // Use the ID from the found exercise to delete
+        Exercise::delete_by_exercise_id(&exercise.exercise_id);
+        Ok(())
+    } else {
+        Err(format!("Exercise with ID {} not found for deletion.", id))
+    }
+}
+
+
+// --- Queries (Functions to read state) ---
+
+/// Retrieves all exercises from the table.
+#[spacetimedb(query)]
+pub fn get_all_exercises() -> Vec<Exercise> {
+    Exercise::iter().collect()
+}
+
+/// Retrieves a single exercise by its unique ID.
+#[spacetimedb(query)]
+pub fn get_exercise_by_id(id: u32) -> Option<Exercise> {
+    Exercise::filter_by_exercise_id(&id)
+}
+
+/// Retrieves exercises that target a specific muscle group.
+#[spacetimedb(query)]
+pub fn get_exercises_by_muscle_group(group: string) -> Vec<Exercise> {
+    Exercise::iter()
+        .filter(|ex| ex.muscle_groups.contains(&group))
+        .collect()
+}
+
+/// Retrieves all aerobic exercises.
+#[spacetimedb(query)]
+pub fn get_aerobic_exercises() -> Vec<Exercise> {
+    Exercise::iter().filter(|ex| ex.is_aerobic).collect()
+}
+
+/// Retrieves all non-aerobic (strength/anaerobic) exercises.
+#[spacetimedb(query)]
+pub fn get_non_aerobic_exercises() -> Vec<Exercise> {
+    Exercise::iter().filter(|ex| !ex.is_aerobic).collect()
+}
