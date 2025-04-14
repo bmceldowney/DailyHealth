@@ -1,21 +1,24 @@
 # @format
 
-version: "3"
+version: "3.8" # Using 3.8 for potential healthcheck features if needed later
 services:
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "5173:5173"
-      - "9229:9229"
+      - "5173:5173" # Vite default port
+      - "9229:9229" # Node.js debug port
     volumes:
+      # Mount local code for development (consider removing for production builds)
       - ./frontend:/app
+      # Use a named volume for node_modules to persist installs & avoid overwriting by local mount
       - dailyhealth_frontend_node_modules:/app/node_modules
     environment:
-      - VITE_GRPC_WEB_URL=http://localhost:8080
+      # Pass the Envoy proxy URL to the frontend
+      - VITE_GRPC_WEB_URL=http://envoy:8080 # Use service name 'envoy' inside the network
     depends_on:
-      - envoy
+      - envoy # Depends on the proxy being available
     networks:
       - app-network
     logging:
@@ -23,15 +26,24 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    # Optional: Add a restart policy for robustness
+    restart: unless-stopped
 
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     ports:
-      - "50051:50051"
+      - "50051:50051" # Expose gRPC port for potential direct testing (optional)
     environment:
-      - GRPC_PORT=50051
+      - GRPC_PORT=50051 # Port the gRPC server listens on *inside* the container
+      # Add environment variables for SpacetimeDB connection
+      - SPACETIMEDB_HOST=spacetimedb # Use the service name as the hostname
+      - SPACETIMEDB_TCP_PORT=3001 # Default TCP port for SpacetimeDB
+      - SPACETIMEDB_HTTP_PORT=3000 # Default HTTP port for SpacetimeDB
+      - SPACETIMEDB_UDP_PORT=3005 # Default UDP port for SpacetimeDB
+    depends_on:
+      - spacetimedb # Ensure database starts before the backend
     networks:
       - app-network
     logging:
@@ -39,21 +51,55 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
+    restart: unless-stopped # Optional: Add a restart policy
 
-  envoy:
-    image: envoyproxy/envoy:v1.28-latest
-    volumes:
-      - ./envoy.yaml:/etc/envoy/envoy.yaml
+  spacetimedb:
+    # Use the official SpacetimeDB image
+    image: clockworklabs/spacetimedb:latest # Consider using a specific version tag
     ports:
-      - "8080:8080"
-      - "9901:9901"
-    depends_on:
-      - backend
+      # Map ports to host for potential direct access/debugging (optional)
+      - "3000:3000" # HTTP/WebSocket/Admin
+      - "3001:3001" # TCP
+      - "3005:3005/udp" # UDP (ensure '/udp' is specified)
+    volumes:
+      # Use a named volume to persist database data
+      - spacetimedb_data:/data # Assumes SpacetimeDB stores data in /data inside the container
     networks:
       - app-network
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+    restart: unless-stopped # Keep the database running
+    # Optional Healthcheck (Example - may need adjustment based on SpacetimeDB image/tools)
+    # healthcheck:
+    #   test: ["CMD-SHELL", "spacetime status --host localhost --port 3001 || exit 1"] # Example command, adjust as needed
+    #   interval: 10s
+    #   timeout: 5s
+    #   retries: 5
+    #   start_period: 30s # Give it time to initialize
+
+  envoy:
+    image: envoyproxy/envoy:v1.28-latest # Use a specific version if needed
+    volumes:
+      # Mount your Envoy configuration file
+      - ./envoy.yaml:/etc/envoy/envoy.yaml:ro # Mount read-only
+    ports:
+      # Port frontend connects to
+      - "8080:8080"
+      # Envoy admin port
+      - "9901:9901"
+    depends_on:
+      - backend # Proxy needs the backend to forward requests to
+    networks:
+      - app-network
+    command: /usr/local/bin/envoy -c /etc/envoy/envoy.yaml --service-cluster envoy # Example command, adjust if needed
+    restart: unless-stopped # Optional: Add a restart policy
 
 volumes:
   dailyhealth_frontend_node_modules:
+  spacetimedb_data: # Define the named volume for SpacetimeDB data
 
 networks:
   app-network:
