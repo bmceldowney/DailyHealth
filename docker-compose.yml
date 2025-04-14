@@ -1,3 +1,6 @@
+# @format
+
+version: "3"
 services:
   frontend:
     build:
@@ -5,13 +8,16 @@ services:
       dockerfile: Dockerfile
     ports:
       - "5173:5173"
+      - "9229:9229"
     volumes:
       - ./frontend:/app
-      - /app/node_modules
+      - dailyhealth_frontend_node_modules:/app/node_modules
     environment:
-      - VITE_API_URL=http://backend:50051
+      - VITE_GRPC_WEB_URL=http://localhost:8080
     depends_on:
-      - backend
+      - envoy
+    networks:
+      - app-network
     logging:
       driver: "json-file"
       options:
@@ -26,8 +32,29 @@ services:
       - "50051:50051"
     environment:
       - GRPC_PORT=50051
+    networks:
+      - app-network
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
-        max-file: "3" 
+        max-file: "3"
+
+  envoy:
+    image: envoyproxy/envoy:v1.28-latest
+    volumes:
+      - ./envoy.yaml:/etc/envoy/envoy.yaml
+    ports:
+      - "8080:8080"
+      - "9901:9901"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+
+volumes:
+  dailyhealth_frontend_node_modules:
+
+networks:
+  app-network:
+    driver: bridge

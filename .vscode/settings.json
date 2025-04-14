@@ -1,0 +1,8 @@
+{
+  "typescript.tsdk": "~/docker_node_modules/dailyhealth_frontend/typescript/lib",
+  "javascript.suggest.paths": true,
+  "typescript.suggest.paths": true,
+  "path-intellisense.mappings": {
+    "/": "~/docker_node_modules/dailyhealth_frontend"
+  }
+}
